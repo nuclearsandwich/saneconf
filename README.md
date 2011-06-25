@@ -13,20 +13,20 @@ You can even add your own config variables such as `MR_FANCY_PANTS=the_worlds_be
 
 In your code you'd get to it like this:
 ``` ruby
-		def controller_action
-			if ENV['ARTIST'] == "Jonathan Coulton"
-				@still_alive = true
-			end
-		end
+def controller_action
+	if ENV['ARTIST'] == "Jonathan Coulton"
+		@still_alive = true
+	end
+end
 ```
 
 But then this also has to work locally! So you need to do somethig like this:
 ``` ruby
-		def controller_action
-			if (ENV['ARTIST'] || SETTINGS[:artist]) == "Jonathan Coulton"
-				@still_alive = true
-			end
-		end
+def controller_action
+	if (ENV['ARTIST'] || SETTINGS[:artist]) == "Jonathan Coulton"
+		@still_alive = true
+	end
+end
 ```
 
 Alternatively, you could set up all these environment variables using a rake or thor task before launching your app but who wants to deal with that? My favorite solution to a problem is a coding solution.
@@ -42,76 +42,76 @@ You'll see how this inspired my solution later on. Or perhaps I'm not as brillia
 So let's say we're working on a lightweight Sinatra application and we know that it'll start simple and grow in complexity later on. Since we're smart we're going to namespace the whole thing under a module. Namely `Saneconf` Our skeleton looks like this:
 
 ``` ruby
-		require 'rubygems' # Only needed for Ruby 1.8
-		require 'bundler'
-		# After this line, I shouldn't even have to *think* about dependencies.
-		Bundler.require
-		
-		# This is the initilization file for the Saneconf API. All set up, library
-		# loading and application level settings are done here.
-		module Saneconf
-			# If there's a better/safer way to do this generically do let me know.
-			# I haven't encountered a setup where this didn't work.
-		  def Saneconf.root; Dir.pwd; end
-		
-			# This one is important so we set it early and use a constant.
-		  # Set Rack environment if not specified.
-		  RACK_ENV = ENV['RACK_ENV'] || "development"
-		
-			# Create an accessor to a module attribute which defaults to a
-		  def Saneconf.conf; @conf_hash ||= Hash.new; end
-		
-		  # Handles initialization and preprocessing of application settings be they
-		  # from Heroku's Environment or a local `settings.yml`.
-		  require_relative 'config/setup.rb'
-		
-			class App < Sinatra::Base
-				get '/' do
-					"<h1>So nice to be sane again, eh? #{conf['ARTIST']}?</h1>"
-				end
-			end
+require 'rubygems' # Only needed for Ruby 1.8
+require 'bundler'
+# After this line, I shouldn't even have to *think* about dependencies.
+Bundler.require
+
+# This is the initilization file for the Saneconf API. All set up, library
+# loading and application level settings are done here.
+module Saneconf
+	# If there's a better/safer way to do this generically do let me know.
+	# I haven't encountered a setup where this didn't work.
+  def Saneconf.root; Dir.pwd; end
+
+	# This one is important so we set it early and use a constant.
+  # Set Rack environment if not specified.
+  RACK_ENV = ENV['RACK_ENV'] || "development"
+
+	# Create an accessor to a module attribute which defaults to a
+  def Saneconf.conf; @conf_hash ||= Hash.new; end
+
+  # Handles initialization and preprocessing of application settings be they
+  # from Heroku's Environment or a local `settings.yml`.
+  require_relative 'config/setup.rb'
+
+	class App < Sinatra::Base
+		get '/' do
+			"<h1>So nice to be sane again, eh? #{conf['ARTIST']}?</h1>"
 		end
+	end
+end
 ```
 
 That looks cool and all, but what the hell is `config/setup.rb`? Answer: It's where the magic happens, let's go take a look:
 
 ``` ruby
-		if File.exists? "config/settings.yml"
-			Saneconf.conf.merge!(
-				YAML.load_file("config/settings.yml")[Saneconf::RACK_ENV])
-			Saneconf.conf['RESQUE_SCHEDULE'] = 
-				YAML.load_file("config/resque_schedule.yml")
-		else
-			Saneconf.conf.merge!(ENV)
-		end
-		
-		db = URI Saneconf.conf['DATABASE_URL']
-		redis = URI Saneconf.conf['REDISTOGO_URL']
-		
-		# Parse Postgres connection settings.
-		Saneconf.conf['DATABASE'] = {
-			:adapter => "#{db.scheme}ql", # Add a 'ql' cause ActiveRecord is stupid.
-			:host => db.host,
-			:port => db.port,
-			:database => db.path[1..-1],
-			:username => db.user,
-			:password => db.password
-		}
-		
-		# Parse Redis connection settings.
-		Saneconf.conf['REDIS'] = {
-			:host => redis.host,
-			:port => redis.port,
-			:password => redis.password,
-			:db => redis.path[1..-1]
-		}
-		
-		# Parse Resque Schedule YAML.
-		if Saneconf.conf['RESQUE_SCHEDULE'].class == String
-			Saneconf.conf['RESQUE_SCHEDULE'] = YAML.load Saneconf.conf['RESQUE_SCHEDULE']
-		end
-		
-		Saneconf.conf.freeze
+if File.exists? "config/settings.yml"
+	Saneconf.conf.merge!(
+		YAML.load_file("config/settings.yml")[Saneconf::RACK_ENV])
+	Saneconf.conf['RESQUE_SCHEDULE'] = 
+		YAML.load_file("config/resque_schedule.yml")
+else
+	Saneconf.conf.merge!(ENV)
+end
+
+db = URI Saneconf.conf['DATABASE_URL']
+redis = URI Saneconf.conf['REDISTOGO_URL']
+
+# Parse Postgres connection settings.
+Saneconf.conf['DATABASE'] = {
+	:adapter => "#{db.scheme}ql", # Add a 'ql' cause ActiveRecord is stupid.
+	:host => db.host,
+	:port => db.port,
+	:database => db.path[1..-1],
+	:username => db.user,
+	:password => db.password
+}
+
+# Parse Redis connection settings.
+Saneconf.conf['REDIS'] = {
+	:host => redis.host,
+	:port => redis.port,
+	:password => redis.password,
+	:db => redis.path[1..-1]
+}
+
+# Parse Resque Schedule YAML.
+if Saneconf.conf['RESQUE_SCHEDULE'].class == String
+	Saneconf.conf['RESQUE_SCHEDULE'] = YAML.load Saneconf.conf['RESQUE_SCHEDULE']
+end
+
+Saneconf.conf.freeze
 ```
 
 All this does is check for the existence of a `settings.yml` and load it's values into our (currently) empty configuration hash using an in-place `#merge!`. The reason we do this is because we very purposefully didn't supply a mutator `Saneconf.conf=` for our config hash. We don't *want* it to be overwritten later on. For the moment though we can change existing keys and add new ones. Next we handle all non-scalar configuration by parsing some of the scalar ones into hashes. Arrays or any other Ruby object could be placed in the `conf` hash. It just happens that Hashes are commonly used by libraries like ActiveRecord and the Ruby Redis interface for initialization. The reason I expand those here and not in place at point-of-use is mostly personal preference. All I ever want to see in the app is `conf['VARIABLE']` and I shouldn't have to think about it and whatever I'm trying to accomplish at that point in our app. Lastly, we call `#freeze` on the conf hash. This is a method every Ruby object has which makes it immutable, throwing an exception if an attempt is made to change it. This way, any of your fellow developers will know that whatever they're doing belongs in your application initialization code and not in the middle of your important code.
