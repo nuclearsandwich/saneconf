@@ -12,20 +12,22 @@ You can even add your own config variables such as `MR_FANCY_PANTS=the_worlds_be
 `heroku config:add MR_FANCY_PANTS=sad_deep_inside ARTIST="Jonathan Coulton"` this command will expose both your variables to your code using Ruby's `ENV` hash.
 
 In your code you'd get to it like this:
-		#!ruby
+``` ruby
 		def controller_action
 			if ENV['ARTIST'] == "Jonathan Coulton"
 				@still_alive = true
 			end
 		end
+```
 
 But then this also has to work locally! So you need to do somethig like this:
-		#!ruby
+``` ruby
 		def controller_action
 			if (ENV['ARTIST'] || SETTINGS[:artist]) == "Jonathan Coulton"
 				@still_alive = true
 			end
 		end
+```
 
 Alternatively, you could set up all these environment variables using a rake or thor task before launching your app but who wants to deal with that? My favorite solution to a problem is a coding solution.
 
@@ -39,7 +41,7 @@ You'll see how this inspired my solution later on. Or perhaps I'm not as brillia
 
 So let's say we're working on a lightweight Sinatra application and we know that it'll start simple and grow in complexity later on. Since we're smart we're going to namespace the whole thing under a module. Namely `Saneconf` Our skeleton looks like this:
 
-		#!ruby
+``` ruby
 		require 'rubygems' # Only needed for Ruby 1.8
 		require 'bundler'
 		# After this line, I shouldn't even have to *think* about dependencies.
@@ -69,10 +71,11 @@ So let's say we're working on a lightweight Sinatra application and we know that
 				end
 			end
 		end
+```
 
 That looks cool and all, but what the hell is `config/setup.rb`? Answer: It's where the magic happens, let's go take a look:
 
-		#!ruby
+``` ruby
 		if File.exists? "config/settings.yml"
 			Saneconf.conf.merge!(
 				YAML.load_file("config/settings.yml")[Saneconf::RACK_ENV])
@@ -109,6 +112,7 @@ That looks cool and all, but what the hell is `config/setup.rb`? Answer: It's wh
 		end
 		
 		Saneconf.conf.freeze
+```
 
 All this does is check for the existence of a `settings.yml` and load it's values into our (currently) empty configuration hash using an in-place `#merge!`. The reason we do this is because we very purposefully didn't supply a mutator `Saneconf.conf=` for our config hash. We don't *want* it to be overwritten later on. For the moment though we can change existing keys and add new ones. Next we handle all non-scalar configuration by parsing some of the scalar ones into hashes. Arrays or any other Ruby object could be placed in the `conf` hash. It just happens that Hashes are commonly used by libraries like ActiveRecord and the Ruby Redis interface for initialization. The reason I expand those here and not in place at point-of-use is mostly personal preference. All I ever want to see in the app is `conf['VARIABLE']` and I shouldn't have to think about it and whatever I'm trying to accomplish at that point in our app. Lastly, we call `#freeze` on the conf hash. This is a method every Ruby object has which makes it immutable, throwing an exception if an attempt is made to change it. This way, any of your fellow developers will know that whatever they're doing belongs in your application initialization code and not in the middle of your important code.
 
