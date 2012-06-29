@@ -1,24 +1,12 @@
 if File.exists? "config/settings.yml"
 	Saneconf.conf.merge!(
 		YAML.load_file("config/settings.yml")[Saneconf::RACK_ENV])
-	Saneconf.conf['RESQUE_SCHEDULE'] = 
-		YAML.load_file("config/resque_schedule.yml")
 else
 	Saneconf.conf.merge!(ENV)
 end
 
 db = URI Saneconf.conf['DATABASE_URL']
 redis = URI Saneconf.conf['REDISTOGO_URL']
-
-# Parse Postgres connection settings.
-Saneconf.conf['DATABASE'] = {
-	:adapter => "#{db.scheme}ql",
-	:host => db.host,
-	:port => db.port,
-	:database => db.path[1..-1],
-	:username => db.user,
-	:password => db.password
-}
 
 # Parse Redis connection settings.
 Saneconf.conf['REDIS'] = {
@@ -28,9 +16,12 @@ Saneconf.conf['REDIS'] = {
 	:db => redis.path[1..-1]
 }
 
-# Parse Resque Schedule YAML.
-if Saneconf.conf['RESQUE_SCHEDULE'].class == String
-	Saneconf.conf['RESQUE_SCHEDULE'] = YAML.load Saneconf.conf['RESQUE_SCHEDULE']
+# If converting each setting to an integer, then a string leaves it equivalent
+# to its original conversion to a string then it is an integer.
+Saneconf.conf.each_key do |setting|
+  if Saneconf.conf[setting].to_i.to_s == Saneconf.conf[setting].to_s
+    Saneconf.conf[settings] = Saneconf.conf[setting].to_i
+  end
 end
 
 Saneconf.conf.freeze
